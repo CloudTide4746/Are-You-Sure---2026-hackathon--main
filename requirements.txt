@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlmodel
+httpx
+python-dotenv
+python-multipart
+pypdf
+python-docx
+

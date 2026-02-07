@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MindForge V2.0 | AI-Guided Project Vision</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00F0FF;
+            --secondary: #7000FF;
+            --success: #00FF94;
+            --danger: #FF005C;
+            --dark: #050505;
+        }
+
+        body {
+            background-color: var(--dark);
+            color: white;
+            font-family: 'Space Grotesk', sans-serif;
+            overflow-x: hidden;
+            scroll-behavior: smooth;
+        }
+
+        /* 动态网格背景 */
+        .mesh-gradient {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            background: 
+                radial-gradient(circle at 10% 10%, rgba(0, 240, 255, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 90% 90%, rgba(112, 0, 255, 0.1) 0%, transparent 40%);
+        }
+
+        .bg-grid {
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+        }
+
+        /* 霓虹按钮 */
+        .neon-btn {
+            position: relative;
+            padding: 1rem 2rem;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            overflow: hidden;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border-radius: 0.75rem;
+        }
+
+        .neon-btn:hover {
+            background: var(--primary);
+            color: black;
+            box-shadow: 0 0 30px var(--primary);
+            transform: translateY(-3px);
+        }
+
+        /* 脑图节点 */
+        .node-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            transition: all 0.5s ease;
+        }
+
+        .node-card.red { border-color: var(--danger); background: rgba(255, 0, 92, 0.05); }
+        .node-card.green { border-color: var(--success); background: rgba(0, 255, 148, 0.05); }
+
+        .node-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        /* 动画 */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        .animate-float { animation: float 4s ease-in-out infinite; }
+
+        .scanline {
+            width: 100%;
+            height: 2px;
+            background: rgba(0, 240, 255, 0.3);
+            position: absolute;
+            top: 0;
+            z-index: 10;
+            animation: scan 3s linear infinite;
+        }
+
+        @keyframes scan {
+            0% { top: 0%; }
+            100% { top: 100%; }
+        }
+
+        .path-line {
+            stroke-dasharray: 1000;
+            stroke-dashoffset: 1000;
+            animation: draw 1.5s forwards;
+        }
+
+        @keyframes draw {
+            to { stroke-dashoffset: 0; }
+        }
+
+        /* 隐藏滚动条 */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+        }
+    </style>
+</head>
+<body class="bg-grid">
+    <div class="mesh-gradient"></div>
+
+    <!-- Navigation -->
+    <nav class="fixed top-0 left-0 right-0 z-50 px-6 py-4 glass-panel border-b border-white/10">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(0,240,255,0.4)]">
+                    <svg class="w-6 h-6 text-black" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </div>
+                <div>
+                    <h1 class="text-lg font-black tracking-tighter uppercase italic">MindForge <span class="text-cyan-400 font-light">V2.0</span></h1>
+                    <p class="text-[9px] tracking-[0.3em] font-bold text-white/40 uppercase">Dev: Thomas Deng</p>
+                </div>
+            </div>
+            <div class="hidden md:flex gap-8 items-center">
+                <a href="#vision" class="text-xs font-bold uppercase tracking-widest hover:text-cyan-400 transition-colors">Vision</a>
+                <a href="#logic" class="text-xs font-bold uppercase tracking-widest hover:text-cyan-400 transition-colors">Logic</a>
+                <a href="#sandbox" class="text-xs font-bold uppercase tracking-widest hover:text-cyan-400 transition-colors">Sandbox</a>
+                <button class="neon-btn text-[10px] py-2 px-6">Launch Alpha</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section id="vision" class="relative pt-48 pb-32 px-6 overflow-hidden">
+        <div class="max-w-6xl mx-auto text-center relative z-10">
+            <div class="inline-block mb-6 px-4 py-1 rounded-full border border-cyan-400/30 bg-cyan-400/10 text-cyan-400 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
+                System Revision Alpha - Thomas Deng
+            </div>
+            <h2 class="text-7xl md:text-9xl font-black leading-[0.85] tracking-tighter uppercase mb-12">
+                DYNAMIC <br>
+                <span class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-white to-purple-500">INTELLIGENCE</span>
+            </h2>
+            <p class="text-white/50 text-xl max-w-2xl mx-auto mb-16 leading-relaxed font-medium">
+                彻底告别静态脑图。V2.0 强制执行动态追问逻辑，在交互中引导创意补全，而非填鸭式展示。
+            </p>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+                <div class="p-8 border-l border-white/10 text-center">
+                    <div class="text-4xl font-black text-cyan-400 mb-2">10-40m</div>
+                    <div class="text-[10px] text-white/40 font-bold uppercase tracking-widest">完善时长锁定</div>
+                </div>
+                <div class="p-8 border-l border-white/10 text-center">
+                    <div class="text-4xl font-black text-purple-500 mb-2">LVL 3</div>
+                    <div class="text-[10px] text-white/40 font-bold uppercase tracking-widest">深度硬性约束</div>
+                </div>
+                <div class="p-8 border-l border-white/10 text-center">
+                    <div class="text-4xl font-black text-green-400 mb-2">8-28</div>
+                    <div class="text-[10px] text-white/40 font-bold uppercase tracking-widest">节点总量控制</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Core Logic Engine -->
+    <section id="logic" class="py-32 px-6 bg-white/[0.01]">
+        <div class="max-w-7xl mx-auto">
+            <div class="flex flex-col lg:flex-row gap-20 items-center">
+                <div class="lg:w-1/2">
+                    <h3 class="text-4xl font-black uppercase tracking-tighter mb-8 italic">
+                        节点生成 <span class="text-cyan-400 font-light">铁律机制</span>
+                    </h3>
+                    
+                    <div class="space-y-6">
+                        <div class="group p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-cyan-400/50 transition-all">
+                            <div class="flex items-center gap-4 mb-3">
+                                <div class="w-10 h-10 rounded-lg bg-cyan-400/20 flex items-center justify-center text-cyan-400 font-bold">01</div>
+                                <h4 class="font-black uppercase italic">先根、后问、再生成</h4>
+                            </div>
+                            <p class="text-sm text-white/40 font-medium">严禁初始生成全量导图。初始仅 3-6 个一级根问题，后续分支完全由用户解答质量动态触发。</p>
+                        </div>
+
+                        <div class="group p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-purple-400/50 transition-all">
+                            <div class="flex items-center gap-4 mb-3">
+                                <div class="w-10 h-10 rounded-lg bg-purple-400/20 flex items-center justify-center text-purple-400 font-bold">02</div>
+                                <h4 class="font-black uppercase italic">智能变色与溯源</h4>
+                            </div>
+                            <p class="text-sm text-white/40 font-medium">AI 判定完善后节点转绿。末端转绿自动溯源父节点，并自动定位跳转至邻近未完成分支。</p>
+                        </div>
+
+                        <div class="group p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-green-400/50 transition-all">
+                            <div class="flex items-center gap-4 mb-3">
+                                <div class="w-10 h-10 rounded-lg bg-green-400/20 flex items-center justify-center text-green-400 font-bold">03</div>
+                                <h4 class="font-black uppercase italic">1-2轮追问锁定</h4>
+                            </div>
+                            <p class="text-sm text-white/40 font-medium">单个分支追问严禁超过 2 轮。一旦信息充足立即停止延伸，确保 40 分钟内产出成果。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sandbox Simulation -->
+                <div id="sandbox" class="lg:w-1/2 w-full h-[600px] bg-black rounded-[3rem] border border-white/10 relative overflow-hidden group shadow-2xl">
+                    <div class="scanline"></div>
+                    <div class="absolute inset-0 p-8 flex flex-col">
+                        <div class="flex justify-between items-center mb-12">
+                            <div class="text-[10px] font-black tracking-[0.3em] uppercase opacity-40">Sandbox: Dynamic Evolution Engine</div>
+                            <button onclick="resetSandbox()" class="text-[10px] font-bold text-white/40 hover:text-cyan-400 uppercase">Reset System</button>
+                        </div>
+
+                        <!-- 脑图绘图区 -->
+                        <div id="mindmap-container" class="flex-1 flex flex-col items-center justify-center gap-16 relative">
+                            <!-- Root Node -->
+                            <div class="relative z-10 w-32 h-32 rounded-[2rem] bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center p-1 text-black font-black text-xs text-center shadow-[0_0_30px_rgba(0,240,255,0.3)] animate-float">
+                                <div class="bg-white w-full h-full rounded-[1.8rem] flex items-center justify-center">
+                                    项目原始构想
+                                </div>
+                            </div>
+
+                            <!-- Layer 1 Container -->
+                            <div id="layer-1" class="flex gap-12 relative z-10">
+                                <!-- Nodes will be injected here -->
+                            </div>
+
+                            <svg id="lines-overlay" class="absolute inset-0 w-full h-full pointer-events-none opacity-30"></svg>
+                        </div>
+                        
+                        <div class="mt-auto flex justify-center pb-4">
+                            <div class="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] font-black tracking-widest text-cyan-400">
+                                CLICK RED NODES TO COMPLETE & GROW
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-24 px-6 border-t border-white/5">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-end gap-12">
+            <div>
+                <h3 class="text-[12vw] font-black tracking-tighter opacity-5 leading-none mb-10 select-none">THOMAS DENG</h3>
+                <div class="flex gap-8">
+                    <a href="#" class="text-xs font-black uppercase text-white/40 hover:text-cyan-400">GitHub</a>
+                    <a href="#" class="text-xs font-black uppercase text-white/40 hover:text-cyan-400">Documentation</a>
+                    <a href="#" class="text-xs font-black uppercase text-white/40 hover:text-cyan-400">V2.0 Protocol</a>
+                </div>
+            </div>
+            <div class="text-right">
+                <p class="text-xs font-bold uppercase tracking-widest mb-6">Built for the future of Project Initiation.</p>
+                <button class="neon-btn" style="--primary: #00FF94; color: #00FF94">Get Full Report</button>
+                <p class="text-[10px] text-white/20 mt-12 font-bold tracking-widest uppercase">© 2024 MindForge Strategy System</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // 沙盒逻辑
+        const container = document.getElementById('layer-1');
+        const overlay = document.getElementById('lines-overlay');
+        
+        const initialNodes = [
+            { id: 1, label: "核心目标细化", status: 'red' },
+            { id: 2, label: "受众价值主张", status: 'red' },
+            { id: 3, label: "实施资源评估", status: 'red' }
+        ];
+
+        function createNode(nodeData, level = 1) {
+            const div = document.createElement('div');
+            div.className = `node-card ${nodeData.status} p-4 rounded-xl cursor-pointer min-w-[140px] text-center transform transition-all hover:scale-105 active:scale-95`;
+            div.id = `node-${nodeData.id}`;
+            div.innerHTML = `
+                <div class="text-[8px] font-black uppercase mb-1 ${nodeData.status === 'red' ? 'text-red-400' : 'text-green-400'}">
+                    ${nodeData.status === 'red' ? 'Pending' : 'Completed'}
+                </div>
+                <div class="text-[11px] font-bold text-white">${nodeData.label}</div>
+            `;
+            
+            div.onclick = () => handleNodeClick(nodeData, div);
+            return div;
+        }
+
+        function handleNodeClick(nodeData, element) {
+            if (nodeData.status === 'green') return;
+
+            // 变绿
+            nodeData.status = 'green';
+            element.classList.remove('red');
+            element.classList.add('green');
+            element.querySelector('.text-red-400').className = 'text-[8px] font-black uppercase mb-1 text-green-400';
+            element.querySelector('.text-[8px]').innerText = 'Completed';
+
+            // 生成追问 (如果层级允许)
+            if (nodeData.level < 3) {
+                const childId = Date.now();
+                const childNode = {
+                    id: childId,
+                    label: `动态追问: ${nodeData.label}的细节`,
+                    status: 'red',
+                    level: nodeData.level + 1
+                };
+
+                const childWrapper = document.createElement('div');
+                childWrapper.className = "flex flex-col items-center gap-8 mt-12 animate-in fade-in slide-in-from-top-4 duration-700";
+                
+                // 画连线 (简单演示：在容器下直接添加)
+                const nodeEl = createNode(childNode, childNode.level);
+                childWrapper.appendChild(nodeEl);
+                element.parentNode.appendChild(childWrapper);
+            }
+        }
+
+        function resetSandbox() {
+            container.innerHTML = '';
+            initialNodes.forEach(node => {
+                node.status = 'red';
+                node.level = 1;
+                container.appendChild(createNode(node));
+            });
+        }
+
+        // 初始化
+        window.onload = resetSandbox;
+
+        // 视差动效
+        window.addEventListener('scroll', () => {
+            const scrolled = window.pageYOffset;
+            document.querySelector('.mesh-gradient').style.transform = `translateY(${scrolled * 0.1}px)`;
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MindBridge AI - Google Premium Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --google-blue: #4285F4;
+            --google-red: #EA4335;
+            --google-yellow: #FBBC05;
+            --google-green: #34A853;
+            --bg-light: #FFFFFF;
+        }
+
+        body {
+            background-color: var(--bg-light);
+            font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            overflow: hidden;
+            cursor: none; /* 使用自定义玻璃指示器替代系统光标 */
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        /* 输入区域允许选中与粘贴，避免屏蔽后无法操作 */
+        input, textarea, [contenteditable="true"] {
+            user-select: text;
+            -webkit-user-select: text;
+        }
+
+        /* 尽量隐藏其它元素上的原生光标（拖拽等场景） */
+        a, button, input, textarea, select,
+        [role="button"], #drop-zone, .node, #canvas-container, #canvas-inner {
+            cursor: none !important;
+        }
+
+        /* 谷歌四色渐变文字 */
+        .text-google-gradient {
+            background: linear-gradient(to right, #4285F4, #EA4335, #FBBC05, #34A853);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* 动态等高线背景 */
+        .contour-bg {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: -1;
+            opacity: 0.25;
+            background-image: url("data:image/svg+xml,%3Csvg width='1200' height='1200' viewBox='0 0 1000 1000' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 500 Q 250 400 500 500 T 1000 500' fill='none' stroke='%234285F4' stroke-width='1.5'/%3E%3Cpath d='M0 600 Q 250 500 500 600 T 1000 600' fill='none' stroke='%2334A853' stroke-width='1.5'/%3E%3Cpath d='M0 400 Q 250 300 500 400 T 1000 400' fill='none' stroke='%23EA4335' stroke-width='1.5'/%3E%3Cpath d='M0 300 Q 250 200 500 300 T 1000 300' fill='none' stroke='%23FBBC05' stroke-width='1.5'/%3E%3C/svg%3E");
+            background-size: cover;
+            filter: blur(1.5px);
+            animation: move-bg 60s linear infinite;
+        }
+
+        @keyframes move-bg {
+            from { background-position: 0 0; }
+            to { background-position: 1000px 1000px; }
+        }
+
+        /* 毛玻璃面板 */
+        .glass {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
+        }
+
+        /* 节点样式 */
+        .node {
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+            user-select: none;
+            position: absolute;
+        }
+
+        .node:hover {
+            transform: translateY(-4px) scale(1.03);
+            box-shadow: 0 25px 30px -10px rgba(0, 0, 0, 0.1);
+        }
+
+        .node-red {
+            border: 3px solid var(--google-red);
+            background: #FFF;
+            color: var(--google-red);
+        }
+
+        .node-green {
+            background: var(--google-green);
+            color: white;
+            border: 3px solid var(--google-green);
+        }
+
+        .node-tip {
+            background: #E3F2FD;
+            color: #1E88E5;
+            border: 3px solid #1E88E5;
+        }
+
+        .node-active {
+            box-shadow: 0 0 0 5px rgba(66, 133, 244, 0.3);
+            z-index: 50 !important;
+        }
+
+        /* 连线 */
+        .connector {
+            position: absolute;
+            background: #E2E8F0;
+            z-index: 1;
+            transition: all 0.5s ease;
+            transform-origin: left center;
+        }
+
+        .connector-green {
+            background: var(--google-green);
+            height: 3px !important;
+        }
+
+        /* 右键菜单样式 */
+        #node-context-menu {
+            min-width: 160px;
+        }
+
+        /* 呼吸警示 */
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(234, 67, 53, 0.5); }
+            70% { box-shadow: 0 0 0 12px rgba(234, 67, 53, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(234, 67, 53, 0); }
+        }
+
+        .pulse-node {
+            animation: pulse-red 2s infinite;
+        }
+
+        /* 画布系统 */
+        #canvas-container {
+            width: 100%; height: 100%;
+            overflow: hidden;
+            position: relative;
+            cursor: grab;
+            /* 使用公开的高清地形等高线 SVG 作为底图（来自开源图库，如 SVG Repo） */
+            background-color: #f8fafc;
+            background-image: url("https://www.svgrepo.com/download/399308/topography.svg");
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-position: center;
+            opacity: 0.9;
+        }
+
+        #canvas-container:active { cursor: grabbing; }
+
+        #canvas-inner {
+            width: 4000px; height: 4000px;
+            position: absolute;
+            transition: transform 0.6s cubic-bezier(0.2, 0, 0.2, 1);
+            z-index: 1;
+        }
+
+        /* 英雄区域消失动画 */
+        .hero-section {
+            transition: all 0.8s cubic-bezier(0.645, 0.045, 0.355, 1);
+        }
+        .hero-exit {
+            opacity: 0;
+            transform: scale(0.9) translateY(-60px);
+            pointer-events: none;
+            max-height: 0;
+            margin-bottom: 0 !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            overflow: hidden;
+        }
+
+        /* 文档拖拽区：识别成功后折叠，不挡对话框 */
+        #drop-zone {
+            transition: opacity 0.4s ease, max-height 0.4s ease, margin 0.4s ease, padding 0.4s ease;
+        }
+        #drop-zone.drop-zone-hidden {
+            opacity: 0;
+            max-height: 0;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden;
+            pointer-events: none;
+            border: none !important;
+        }
+
+        /* 玻璃质感跟随鼠标指示器（取消颜色滤镜，只保留高光圆环） */
+        #glass-cursor {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            /* 透亮玻璃圆环：中间完全透明，只在边缘有一点白色高光 */
+            background: radial-gradient(circle at center,
+                rgba(255,255,255,0.0) 0%,
+                rgba(255,255,255,0.0) 60%,
+                rgba(255,255,255,0.20) 85%,
+                rgba(255,255,255,0.32) 100%
+            );
+            mix-blend-mode: normal; /* 不再对底下内容做颜色滤镜 */
+            backdrop-filter: blur(1px);          /* 几乎不模糊，保证文字清晰可读 */
+            -webkit-backdrop-filter: blur(1px);
+            border: 1px solid rgba(255, 255, 255, 0.9); /* 更锐利的玻璃边缘 */
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18); /* 适度增强立体感 */
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+            will-change: transform;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col items-center justify-center">
+    <div class="contour-bg"></div>
+    <div id="glass-cursor"></div>
+
+    <!-- 顶栏：项目名 + 进度 + 融合按钮 -->
+    <header id="top-bar" class="fixed top-8 left-1/2 -translate-x-1/2 w-[92%] max-w-7xl z-[100] opacity-0 transition-all duration-1000 -translate-y-8 pointer-events-none">
+        <div class="glass px-10 py-5 rounded-[32px] flex items-center justify-between">
+            <div class="flex items-center gap-8">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 via-red-500 to-yellow-500 flex items-center justify-center text-white shadow-xl">
+                        <i class="fas fa-microchip text-xl"></i>
+                    </div>
+                    <div>
+                        <h2 id="project-title-display" class="font-black text-gray-900 tracking-tight text-lg">AI Project</h2>
+                        <div class="flex gap-1 mt-0.5">
+                            <div class="w-2 h-1 rounded-full bg-[#4285F4]"></div>
+                            <div class="w-2 h-1 rounded-full bg-[#EA4335]"></div>
+                            <div class="w-2 h-1 rounded-full bg-[#FBBC05]"></div>
+                            <div class="w-2 h-1 rounded-full bg-[#34A853]"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="h-10 w-[1.5px] bg-gray-100"></div>
+                <div class="flex flex-col w-56">
+                    <div class="flex justify-between text-[11px] font-black uppercase tracking-wider mb-2">
+                        <span class="text-gray-400">Completion</span>
+                        <span id="progress-text" class="text-green-600">0%</span>
+                    </div>
+                    <div class="h-2.5 bg-gray-100 rounded-full overflow-hidden p-0.5">
+                        <div id="progress-fill" class="h-full bg-green-500 rounded-full w-0 transition-all duration-1000 ease-out shadow-sm"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-6">
+                <button id="merge-btn" class="bg-gray-100 text-gray-300 px-10 py-4 rounded-2xl font-black text-sm transition-all flex items-center gap-3 cursor-not-allowed group">
+                    <i class="fas fa-sparkles text-yellow-400 opacity-50 group-hover:rotate-12 transition-transform"></i> 融合项目成果
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="w-full h-full relative">
+        <!-- 阶段 1：立项对话 -->
+        <section id="chat-view" class="w-full h-full flex flex-col items-center px-6 pt-8 pb-6">
+            <!-- 首屏标题 -->
+            <div id="hero-section" class="hero-section text-center mb-10 space-y-6 flex-shrink-0 w-full max-w-5xl mx-auto">
+                <div class="inline-flex p-8 rounded-[40px] bg-white shadow-2xl shadow-gray-100 mb-6 scale-110 relative group">
+                    <div class="absolute inset-0 bg-gradient-to-tr from-blue-100 to-green-100 rounded-[40px] opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                    <i class="fas fa-lightbulb text-6xl text-[#FBBC05] relative z-10"></i>
+                </div>
+                <h1 class="text-7xl md:text-8xl font-black tracking-tighter text-google-gradient">Tell me about your idea.</h1>
+                <p class="text-2xl text-gray-400 font-medium max-w-2xl mx-auto leading-relaxed">你的创意补全之旅从这里开始。在下方输入构想，或拖拽项目书（txt/pdf/docx）到此处，AI 将实时生成补全脑图。</p>
+            </div>
+
+            <!-- 拖拽/上传项目书 -->
+            <div id="drop-zone" class="w-full max-w-[min(96rem,95vw)] flex-shrink-0 mb-6 rounded-[28px] border-2 border-dashed border-gray-200 bg-gray-50/50 py-10 px-8 text-center transition-all duration-300 hover:border-[#4285F4] hover:bg-blue-50/30">
+                <input type="file" id="drop-file-input" accept=".txt,.pdf,.docx" class="hidden">
+                <label for="drop-file-input" class="cursor-pointer flex flex-col items-center gap-3">
+                    <div class="w-16 h-16 rounded-2xl bg-white shadow-lg flex items-center justify-center text-[#4285F4]">
+                        <i class="fas fa-file-import text-3xl"></i>
+                    </div>
+                    <span class="text-gray-500 font-semibold">将项目书拖拽到此处，或<u class="text-[#4285F4]">点击上传</u></span>
+                    <span class="text-gray-400 text-sm">支持 .txt、.pdf、.docx，最大 5MB</span>
+                </label>
+            </div>
+
+            <!-- 对话历史 -->
+            <div id="chat-history" class="w-full max-w-[min(96rem,95vw)] flex-1 min-h-0 space-y-4 mb-4 overflow-y-auto max-h-[75vh] px-4 py-2 custom-scrollbar"></div>
+
+            <!-- 底部输入 -->
+            <div class="w-full max-w-[min(96rem,95vw)] flex-shrink-0 glass rounded-[28px] p-4 flex items-center gap-4 shadow-2xl transition-all hover:shadow-blue-100/50 group">
+                <div class="pl-2 text-blue-500">
+                    <i class="fas fa-terminal text-xl opacity-40"></i>
+                </div>
+                <textarea id="initial-input" rows="2" placeholder="描述你的项目目标、愿景或核心功能… Enter 发送，Shift+Enter 换行" 
+                          class="flex-1 min-h-0 bg-transparent border-none outline-none px-4 py-2 text-lg leading-relaxed text-gray-800 placeholder:text-gray-300 font-medium resize-none"></textarea>
+                <button id="start-btn" class="bg-[#4285F4] text-white w-14 h-14 rounded-[20px] flex items-center justify-center hover:scale-105 transition-all shadow-xl hover:shadow-blue-300 active:scale-95 flex-shrink-0">
+                    <i class="fas fa-chevron-right text-xl"></i>
+                </button>
+            </div>
+        </section>
+
+        <!-- 阶段 2：脑图工作台 -->
+        <section id="mindmap-view" class="absolute inset-0 opacity-0 pointer-events-none transition-all duration-1000 scale-95">
+            <div id="canvas-container">
+                <div id="canvas-inner"></div>
+            </div>
+
+            <!-- 节点右键：回答 / 追问 / Tips -->
+            <div id="node-context-menu" class="fixed z-[120] bg-white shadow-2xl rounded-2xl py-2 px-2 text-sm text-gray-800 hidden">
+                <button data-action="answer" class="w-full text-left px-3 py-2 hover:bg-gray-100 rounded-lg">回答</button>
+                <button data-action="spawn" class="w-full text-left px-3 py-2 hover:bg-gray-100 rounded-lg">追问</button>
+                <button data-action="tips" class="w-full text-left px-3 py-2 hover:bg-gray-100 rounded-lg">Tips</button>
+            </div>
+
+            <!-- 底部：当前问题说明 + 作答框 -->
+            <div class="fixed bottom-10 left-1/2 -translate-x-1/2 w-full max-w-6xl px-8 flex flex-col gap-4 items-center">
+                <div id="question-float" class="w-full flex justify-start opacity-0 pointer-events-none transition-all duration-300 translate-y-2">
+                    <div id="question-float-card" class="glass rounded-[28px] p-5 shadow-2xl border border-white/50 w-[420px] max-w-[420px] pointer-events-none">
+                        <div class="flex items-center gap-3 mb-3">
+                            <span class="px-2.5 py-1 bg-[#4285F4]/10 text-[#4285F4] rounded-lg text-[10px] font-black uppercase tracking-wider">当前问题</span>
+                            <span id="question-float-title" class="text-lg font-black text-gray-800"></span>
+                        </div>
+                        <div id="question-float-text" class="text-gray-700 font-medium text-sm leading-relaxed max-h-56 overflow-y-auto custom-scrollbar pr-1"></div>
+                    </div>
+                </div>
+                <!-- 作答框 -->
+                <div id="node-panel" class="w-full glass rounded-[40px] p-6 shadow-2xl flex items-center gap-6 translate-y-32 opacity-0 transition-all duration-700">
+                    <div class="w-20 h-20 rounded-[28px] bg-gradient-to-br from-[#4285F4] to-[#EA4335] flex items-center justify-center flex-shrink-0 shadow-lg">
+                        <i class="fas fa-feather-pointed text-white text-3xl"></i>
+                    </div>
+                    <div class="flex-1 flex flex-col gap-2">
+                        <div class="flex items-center gap-3">
+                            <span class="px-3 py-1 bg-green-50 text-[#34A853] rounded-full text-[10px] font-black uppercase tracking-widest">作答</span>
+                            <span id="active-node-name" class="text-base font-black text-gray-800 truncate"></span>
+                        </div>
+                        <textarea id="node-input" rows="3" placeholder="在此输入你的回答…（可多行）" 
+                               class="w-full bg-white/40 border-none outline-none text-base text-gray-800 py-2 font-semibold placeholder:text-gray-200 rounded-2xl resize-none"></textarea>
+                    </div>
+                    <button id="node-submit" class="bg-[#34A853] text-white px-12 py-5 rounded-[24px] font-black text-lg shadow-xl shadow-green-100 hover:bg-green-600 transition-all hover:-translate-y-1">
+                        完成作答
+                    </button>
+                </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 融合结果弹窗 -->
+    <div id="result-modal" class="fixed inset-0 bg-gray-950/40 backdrop-blur-2xl z-[200] hidden flex items-center justify-center p-12">
+        <div class="bg-white rounded-[60px] w-full max-w-6xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-fadeInUp">
+            <div class="px-16 py-12 border-b border-gray-50 flex justify-between items-center bg-gray-50/20">
+                <div class="space-y-1">
+                    <h2 class="text-5xl font-black tracking-tighter text-google-gradient">项目全景方案</h2>
+                    <p class="text-gray-400 font-bold text-lg">PROJECT COMPLETION BLUEPRINT</p>
+                </div>
+                <button onclick="closeModal()" class="w-16 h-16 rounded-full hover:bg-gray-50 flex items-center justify-center text-gray-400 transition-all border border-gray-100">
+                    <i class="fas fa-times text-2xl"></i>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-20" id="result-content"></div>
+            <div class="p-12 border-t border-gray-50 flex gap-8">
+                <button class="flex-1 bg-[#4285F4] text-white py-6 rounded-[30px] font-black text-xl shadow-2xl shadow-blue-200 hover:scale-[1.02] transition-transform">下载 PDF 报告</button>
+                <button class="flex-1 bg-white border-4 border-[#34A853] text-[#34A853] py-6 rounded-[30px] font-black text-xl hover:bg-green-50 transition-colors">分享至协作平台</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 提示 -->
+    <div id="toast" class="fixed top-12 right-12 glass px-8 py-5 rounded-[28px] shadow-2xl transition-all duration-500 translate-x-20 opacity-0 flex items-center gap-5 z-[300]">
+        <div id="toast-icon" class="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg"></div>
+        <div class="flex flex-col">
+            <span class="text-[10px] font-black text-gray-300 uppercase tracking-widest">AI Agent Message</span>
+            <span id="toast-text" class="text-base font-bold text-gray-800"></span>
+        </div>
+    </div>
+
+    <script type="module" src="./frontend/main.js"></script>
+    <script>
+        // 玻璃质感鼠标指示器，带轻微跟随延迟
+        (function () {
+            const cursor = document.getElementById('glass-cursor');
+            if (!cursor) return;
+
+            let mouseX = 0;
+            let mouseY = 0;
+            let cursorX = 0;
+            let cursorY = 0;
+            const delay = 0.15;
+
+            document.addEventListener('mousemove', (e) => {
+                mouseX = e.clientX;
+                mouseY = e.clientY;
+            });
+
+            function animate() {
+                cursorX += (mouseX - cursorX) * delay;
+                cursorY += (mouseY - cursorY) * delay;
+                const halfW = cursor.offsetWidth / 2;
+                const halfH = cursor.offsetHeight / 2;
+                cursor.style.transform = `translate3d(${cursorX - halfW}px, ${cursorY - halfH}px, 0)`;
+                requestAnimationFrame(animate);
+            }
+            animate();
+
+            // 点击、悬停不再改变形态，仅由 mix-blend-mode 负责颜色滤镜效果
+        })();
+    </script>
+</body>
+</html>
